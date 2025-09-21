@@ -1,0 +1,65 @@
+#ml-capabilities
+name: SonarQube Analysis
+
+on:
+  push:
+    branches:
+      - '*'
+
+env:
+  PROJECT_NAME: IOS_ML_Capabilities
+
+jobs:
+  sonar:
+    runs-on: sonarqube-analysis
+
+    steps:
+      - name: Add Node.js to PATH
+        run: |
+          echo "/home/buildnode2/.nvm/versions/node/v22.16.0/bin" >> $GITHUB_PATH                    
+
+      - name: Add Java 21 to PATH and set JAVA_HOME
+        run: |
+          echo "/usr/lib/jvm/jdk-21.0.6-oracle-x64/bin" >> $GITHUB_PATH
+          echo "JAVA_HOME=/usr/lib/jvm/jdk-21.0.6-oracle-x64" >> $GITHUB_ENV                    
+
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Verify Node.js and Java versions
+        run: |
+          echo "Node.js version:"
+          node -v
+          echo "Java version:"
+          java -version                    
+
+      - name: Validate SonarQube Token
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          echo "Validating SonarQube token..."
+          curl -sf -u "$SONAR_TOKEN:" http://sonarqube.pinacagroup.internal/api/authentication/validate \
+            || { echo "Token validation failed"; exit 1; }          
+
+      - name: Run SonarQube Scanner
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          echo "Running SonarQube Scanner..."
+          /opt/sonar-scanner/bin/sonar-scanner --version
+
+          BRANCH_NAME="${GITHUB_REF##*/}"
+          FULL_PROJECT_KEY="ml-capabilities-${PROJECT_NAME}"
+
+          echo "🔎 Analyzing branch: $BRANCH_NAME"
+          echo "Using project key: $FULL_PROJECT_KEY"
+
+          /opt/sonar-scanner/bin/sonar-scanner -X \
+            -Dsonar.projectKey="$FULL_PROJECT_KEY" \
+            -Dsonar.sources=. \
+            -Dsonar.inclusions=**/*.py \
+            -Dsonar.host.url=http://sonarqube.pinacagroup.internal \
+            -Dsonar.login="$SONAR_TOKEN" \
+            -Dsonar.branch.name="$BRANCH_NAME" \
+            -Dsonar.scanner.skipJreProvisioning=true \
+            -Dsonar.scanner.enableCache=false          
